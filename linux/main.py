@@ -87,7 +87,7 @@ window {
     border-radius: 8px;
 }
 textview, textview text {
-    background-color: rgba(250, 212, 227, 0.40);
+    background-color: rgba(207, 207, 200, 0.30);
     color: #0118cc;
     font-size: 20px;
 }

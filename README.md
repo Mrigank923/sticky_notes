@@ -1,51 +1,46 @@
 # 📝 Sticky Notes
 
-A lightweight, always-on-top sticky notes app built with **Python + GTK3**, for Linux (X11 / XWayland). Notes are transparent, draggable, and persist across sessions.
-
-> ⚠️ **Linux only.** Requires X11 or XWayland. Native Wayland sessions may have limited support.
+A lightweight, always-on-top sticky notes app with an **animated Pokémon buddy**. Built with Python — available for both **Linux** and **Windows**.
 
 ---
 
 ## ✨ Features
 
 - 🖼️ Semi-transparent, borderless window
-- 📌 Always on top & visible on all workspaces
-- 💾 Auto-saves note content on close
-- 🔁 Restores your last note on relaunch
+- �� Always on top & visible on all workspaces
+- 💾 Auto-saves note content on close, restores on relaunch
+- 🎮 Animated Pokémon buddy (random Gen 1, fetched from PokéAPI)
+- 📜 Scrollable text area — window never resizes as you type
 
 ---
 
-## �� Installation
+## 🖥️ Platform Support
 
-### Arch / Manjaro
-```bash
-sudo pacman -S python-gobject gtk3 libwnck3
-```
-
-### Debian / Ubuntu / Mint
-```bash
-sudo apt install python3-gi python3-gi-cairo gir1.2-gtk-3.0 gir1.2-wnck-3.0
-```
-
-### Fedora
-```bash
-sudo dnf install python3-gobject gtk3 libwnck3
-```
+| Platform | Toolkit | Entry Point |
+|----------|---------|-------------|
+| **Linux** (X11 / XWayland) | GTK3 + PyGObject | `linux/main.py` |
+| **Windows** | tkinter + Pillow | `windows/main.py` |
 
 ---
 
-## 🚀 Usage
+## 🚀 Quick Start — Build Once, Click Forever
 
-### Option 1 — Shell script (recommended)
-```bash
-./run.sh
-```
-Automatically checks for dependencies and launches the app.
+Each platform has a **one-time build script** that installs all dependencies and produces a standalone executable. After that, just double-click to launch — no terminal needed.
 
-### Option 2 — Direct
+### 🐧 Linux
 ```bash
-python3 main.py
+cd linux
+chmod +x build.sh
+./build.sh
 ```
+Executable → `linux/dist/sticky_notes`
+
+### 🪟 Windows
+```
+cd windows
+double-click build.bat
+```
+Executable → `windows\dist\sticky_notes.exe`
 
 ---
 
@@ -53,9 +48,10 @@ python3 main.py
 
 Notes are saved automatically when you close the app:
 
-```
-~/sticky-notes/note.txt
-```
+| OS | Path |
+|----|------|
+| Linux | `~/sticky-notes/note.txt` |
+| Windows | `%APPDATA%\sticky-notes\note.txt` |
 
 ---
 
@@ -63,16 +59,43 @@ Notes are saved automatically when you close the app:
 
 ```
 sticky_notes/
-├── main.py          # Application entry point
-├── run.sh           # Linux launcher script
-├── requirements.txt # Python dependencies
+├── linux/
+│   ├── main.py          # Linux app (GTK3)
+│   ├── build.sh         # One-time build script
+│   ├── run.sh           # Run without building
+│   ├── requirements.txt
+│   └── README.md
+├── windows/
+│   ├── main.py          # Windows app (tkinter)
+│   ├── build.bat        # One-time build script
+│   ├── requirements.txt
+│   └── README.md
+├── .env                 # USER_AGENT for PokéAPI (not committed)
 └── README.md
+```
+
+---
+
+## ⚙️ Environment Variables
+
+Create a `.env` file in the root with:
+```env
+USER_AGENT= "enter your value"
 ```
 
 ---
 
 ## 🛠️ Dependencies
 
-- `python-gobject` — Python bindings for GTK3
+### Linux
+- `python-gobject` — GTK3 Python bindings
 - `gtk3` — GUI toolkit
-- `libwnck3` — Window manager control (always-on-top, sticky)
+- `libwnck3` — Always-on-top / sticky workspace control
+- `python-dotenv` — `.env` support
+- `pyinstaller` — Build standalone executable
+
+### Windows
+- `pillow` — Pokémon sprite rendering
+- `python-dotenv` — `.env` support
+- `pyinstaller` — Build standalone executable
+- `tkinter` — Built into Python (no install needed)

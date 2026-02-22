@@ -1,3 +1,30 @@
-venv/
+# ── Environment ───────────────────────────────────────────────────────────────
 .env
+
+# ── Python ────────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# ── Virtual environments ───────────────────────────────────────────────────────
+venv/
+.venv/
+linux/.venv/
+windows/.venv/
+
+# ── PyInstaller build output ───────────────────────────────────────────────────
+linux/build/
+linux/dist/
+linux/*.spec
+windows/build/
+windows/dist/
+windows/*.spec
+
+# ── Dev / scratch files ────────────────────────────────────────────────────────
 rough.py
+
+# ── OS files ──────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini

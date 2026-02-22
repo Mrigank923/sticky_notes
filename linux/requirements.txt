@@ -1,0 +1,3 @@
+PyGObject
+python-dotenv
+pyinstaller
