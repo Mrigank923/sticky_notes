@@ -32,7 +32,9 @@ from io import BytesIO
 # ── Load .env ─────────────────────────────────────────────────────────────────
 try:
     from dotenv import load_dotenv
-    load_dotenv()
+    # .env lives in the repo root (one level above windows/)
+    _ENV_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".env")
+    load_dotenv(dotenv_path=_ENV_FILE)
 except ImportError:
     pass   # dotenv optional — falls back to default User-Agent
 

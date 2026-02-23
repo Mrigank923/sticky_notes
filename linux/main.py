@@ -8,7 +8,9 @@ import threading
 import urllib.request
 from dotenv import load_dotenv
 
-load_dotenv()  # loads variables from .env into os.environ
+# .env lives in the repo root (one level above linux/)
+_ENV_FILE = os.path.join(os.path.dirname(__file__), "..", ".env")
+load_dotenv(dotenv_path=os.path.abspath(_ENV_FILE))
 gi.require_version('Gtk', '3.0')
 gi.require_version('Gdk', '3.0')
 gi.require_version('GdkX11', '3.0')
@@ -46,29 +48,52 @@ def save_note(text):
 
 # ── Pokémon buddy ─────────────────────────────────────────────────────────────
 TOTAL_POKEMON = 151   # Gen 1 — feel free to raise up to 1025
+MAX_RETRIES   = 3     # retry attempts before giving up
+RETRY_DELAY_S = 5     # seconds between retries
+
+# Offline fallback — shown when there's no internet connection
+OFFLINE_POKEMON = [
+    ("Pikachu",    "⚡\n(=·ω·=)\n  Pika!"),
+    ("Charmander", "🔥\n(´•ω•`)\n Char!"),
+    ("Bulbasaur",  "🌿\n(•‿•)\n Bulba!"),
+    ("Squirtle",   "💧\nô‿ô\nSquirt!"),
+    ("Gengar",     "👻\n(ΦωΦ)\n Boo!"),
+]
 
 def fetch_pokemon(callback):
-    """Fetch a random Pokémon sprite + name in a background thread."""
+    """Fetch a random Pokémon sprite + name in a background thread.
+    Retries up to MAX_RETRIES times, then falls back to an offline placeholder."""
     def _fetch():
-        try:
-            poke_id    = random.randint(1, TOTAL_POKEMON)
-            api_url    = f"https://pokeapi.co/api/v2/pokemon/{poke_id}"
-            headers    = {"User-Agent": os.getenv("USER_AGENT", "sticky-notes-app/1.0")}
+        headers = {"User-Agent": os.getenv("USER_AGENT", "sticky-notes-app/1.0")}
+        for attempt in range(1, MAX_RETRIES + 1):
+            try:
+                poke_id    = random.randint(1, TOTAL_POKEMON)
+                api_url    = f"https://pokeapi.co/api/v2/pokemon/{poke_id}"
 
-            req = urllib.request.Request(api_url, headers=headers)
-            with urllib.request.urlopen(req, timeout=5) as r:
-                data = json.loads(r.read())
+                req = urllib.request.Request(api_url, headers=headers)
+                with urllib.request.urlopen(req, timeout=6) as r:
+                    data = json.loads(r.read())
 
-            name       = data["name"].capitalize()
-            sprite_url = data["sprites"]["front_default"]
+                name       = data["name"].capitalize()
+                sprite_url = data["sprites"]["front_default"]
 
-            req2 = urllib.request.Request(sprite_url, headers=headers)
-            with urllib.request.urlopen(req2, timeout=5) as r:
-                img_bytes = r.read()
+                req2 = urllib.request.Request(sprite_url, headers=headers)
+                with urllib.request.urlopen(req2, timeout=6) as r:
+                    img_bytes = r.read()
 
-            GLib.idle_add(callback, name, img_bytes)
-        except Exception as e:
-            print(f"[Pokémon] Could not fetch: {e}")
+                GLib.idle_add(callback, name, img_bytes)
+                return  # success — stop retrying
+
+            except Exception as e:
+                print(f"[Pokémon] Attempt {attempt}/{MAX_RETRIES} failed: {e}")
+                if attempt < MAX_RETRIES:
+                    import time
+                    time.sleep(RETRY_DELAY_S)
+
+        # All retries exhausted — use offline fallback
+        print("[Pokémon] No internet — using offline buddy.")
+        GLib.idle_add(callback, None, None)
+
     threading.Thread(target=_fetch, daemon=True).start()
 
 
@@ -163,6 +188,32 @@ overlay.add_overlay(poke_box)
 overlay.set_overlay_pass_through(poke_box, True)  # clicks pass through to textview
 
 def on_pokemon_loaded(name, img_bytes):
+    import math
+    anim_step = [0]
+
+    # ── Offline fallback: show ASCII buddy ────────────────────────────────
+    if img_bytes is None:
+        fallback_name, ascii_art = random.choice(OFFLINE_POKEMON)
+        lbl = Gtk.Label(label=ascii_art)
+        lbl.set_justify(Gtk.Justification.CENTER)
+        lbl.set_opacity(0.85)
+        poke_box.pack_start(lbl, False, False, 0)
+        poke_box.show_all()
+        window.set_title(f"Sticky Note  •  {fallback_name} (offline)")
+
+        def animate_offline():
+            t = anim_step[0] * 0.1
+            bob = int(8 + 6 * math.sin(t))
+            poke_box.set_margin_bottom(bob)
+            opacity = 0.7 + 0.3 * ((math.sin(t * 0.7) + 1) / 2)
+            lbl.set_opacity(opacity)
+            anim_step[0] += 1
+            return GLib.SOURCE_CONTINUE
+
+        GLib.timeout_add(50, animate_offline)
+        return
+
+    # ── Online: render sprite ─────────────────────────────────────────────
     try:
         loader = GdkPixbuf.PixbufLoader()
         loader.write(img_bytes)
@@ -174,11 +225,8 @@ def on_pokemon_loaded(name, img_bytes):
         window.set_title(f"Sticky Note  •  {name}")
 
         # ── Animation: bob up/down + breathe opacity ──────────────────────
-        import math
-        anim_step = [0]   # mutable counter shared with closure
-
         def animate():
-            t = anim_step[0] * 0.1          # time in radians
+            t = anim_step[0] * 0.1
 
             # Bob: shift margin_bottom between 2 px and 14 px (smooth sine)
             bob = int(8 + 6 * math.sin(t))
