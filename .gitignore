@@ -28,3 +28,14 @@ rough.py
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# ── Mobile — React Native ─────────────────────────────────────────────────────
+mobile/.env
+mobile/node_modules/
+mobile/android/.gradle/
+mobile/android/app/build/
+mobile/android/build/
+mobile/android/local.properties
+mobile/android/app/debug.keystore
+mobile/.expo/
+mobile/dist/

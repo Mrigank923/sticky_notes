@@ -3,6 +3,8 @@ import gi
 import os
 import sys
 import json
+import math
+import time
 import random
 import threading
 import urllib.request
@@ -31,8 +33,9 @@ def _get_data_dir():
         base = os.environ.get("XDG_DATA_HOME", os.path.join(os.path.expanduser("~")))
     return os.path.join(base, "sticky-notes")
 
-DATA_DIR  = _get_data_dir()
-NOTE_FILE = os.path.join(DATA_DIR, "note.txt")
+DATA_DIR   = _get_data_dir()
+NOTE_FILE  = os.path.join(DATA_DIR, "note.txt")
+TS_FILE    = os.path.join(DATA_DIR, "note.ts")   # stores last-modified timestamp
 os.makedirs(DATA_DIR, exist_ok=True)
 print(f"[INFO] Notes saved to: {NOTE_FILE}")
 
@@ -42,14 +45,27 @@ def load_note():
             return f.read()
     return ""
 
-def save_note(text):
+def load_ts() -> float:
+    if os.path.exists(TS_FILE):
+        try:
+            return float(open(TS_FILE).read().strip())
+        except Exception:
+            pass
+    return 0.0
+
+def save_note(text, ts: float = None):
+    if ts is None:
+        ts = time.time()
     with open(NOTE_FILE, "w") as f:
         f.write(text)
+    with open(TS_FILE, "w") as f:
+        f.write(str(ts))
 
 # ── Pokémon buddy ─────────────────────────────────────────────────────────────
-TOTAL_POKEMON = 151   # Gen 1 — feel free to raise up to 1025
-MAX_RETRIES   = 3     # retry attempts before giving up
-RETRY_DELAY_S = 5     # seconds between retries
+TOTAL_POKEMON   = int(os.getenv("TOTAL_POKEMON",   "151"))
+MAX_RETRIES     = int(os.getenv("MAX_RETRIES",     "3"))
+RETRY_DELAY_S   = int(os.getenv("RETRY_DELAY_S",   "5"))
+POKEAPI_BASE_URL = os.getenv("POKEAPI_BASE_URL", "https://pokeapi.co/api/v2/pokemon")
 
 # Offline fallback — shown when there's no internet connection
 OFFLINE_POKEMON = [
@@ -68,7 +84,7 @@ def fetch_pokemon(callback):
         for attempt in range(1, MAX_RETRIES + 1):
             try:
                 poke_id    = random.randint(1, TOTAL_POKEMON)
-                api_url    = f"https://pokeapi.co/api/v2/pokemon/{poke_id}"
+                api_url    = f"{POKEAPI_BASE_URL}/{poke_id}"
 
                 req = urllib.request.Request(api_url, headers=headers)
                 with urllib.request.urlopen(req, timeout=6) as r:
@@ -247,6 +263,42 @@ def on_pokemon_loaded(name, img_bytes):
 
 # Fetch a Pokémon in the background so startup isn't delayed
 fetch_pokemon(on_pokemon_loaded)
+
+# ── Sync server ───────────────────────────────────────────────────────────────
+import sync as _sync
+
+def _on_remote_update(text, ts):
+    """Called from sync thread when mobile sends newer text — update GTK safely."""
+    def _apply():
+        buf.handler_block_by_func(_on_text_changed)   # avoid echo-back
+        buf.set_text(text)
+        buf.handler_unblock_by_func(_on_text_changed)
+        save_note(text, ts)
+    GLib.idle_add(_apply)
+
+def _get_current_text():
+    start, end = buf.get_bounds()
+    return buf.get_text(start, end, False), load_ts()
+
+_sync.start(
+    on_remote_update  = _on_remote_update,
+    get_current_text  = _get_current_text,
+)
+
+# Broadcast note changes to connected mobile clients
+_last_broadcast = [time.time()]
+
+def _on_text_changed(*_):
+    """Debounce: broadcast to mobile 800 ms after the user stops typing."""
+    _last_broadcast[0] = time.time()
+    def _debounced():
+        if time.time() - _last_broadcast[0] >= 0.79:
+            start, end = buf.get_bounds()
+            text = buf.get_text(start, end, False)
+            _sync.broadcast(text, time.time())
+    GLib.timeout_add(800, _debounced)
+
+buf.connect("changed", _on_text_changed)
 
 # Save note text when the window is closed
 def on_destroy(widget):
